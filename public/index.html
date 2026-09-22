@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Brych Taxi - Evidence jízd</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    .ride-none { background-color: #f3f4f6; color: #4b5563; }
+    .ride-to { background-color: #fef08a; color: #854d0e; font-weight: bold; } /* Yellow/amber */
+    .ride-from { background-color: #bae6fd; color: #0369a1; font-weight: bold; } /* Light blue */
+    .ride-both { background-color: #bbf7d0; color: #15803d; font-weight: bold; } /* Light green */
+    .calendar-day-both { background-color: #15803d !important; color: white !important; }
+    .calendar-day-single { background-color: #3b82f6 !important; color: white !important; }
+  </style>
+</head>
+<body class="bg-slate-100 text-slate-800 font-sans min-h-screen flex flex-col">
+
+  <!-- Header -->
+  <header class="bg-amber-500 text-white shadow-lg">
+    <div class="max-w-6xl mx-auto px-4 py-4 flex justify-between items-center">
+      <div class="flex items-center space-x-3">
+        <i class="fa-solid fa-taxi text-3xl"></i>
+        <h1 class="text-2xl font-bold tracking-wide">Brych Taxi</h1>
+      </div>
+      <div id="auth-status" class="flex items-center space-x-3">
+        <!-- Will be filled by JS -->
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <main class="max-w-6xl mx-auto px-4 py-6 flex-1 w-full">
+
+    <!-- Navigation Tabs -->
+    <div class="flex border-b border-slate-300 mb-6 space-x-2">
+      <button id="tab-daily" onclick="switchTab('daily')" class="py-2 px-4 font-semibold text-amber-600 border-b-2 border-amber-500 focus:outline-none flex items-center space-x-2">
+        <i class="fa-solid fa-calendar-day"></i>
+        <span>Rychlé zadání jízdy</span>
+      </button>
+      <button id="tab-monthly" onclick="switchTab('monthly')" class="py-2 px-4 font-semibold text-slate-600 hover:text-amber-600 focus:outline-none flex items-center space-x-2">
+        <i class="fa-solid fa-calendar-days"></i>
+        <span>Měsíční přehled & Kalendář</span>
+      </button>
+      <button id="tab-passengers" onclick="switchTab('passengers')" class="py-2 px-4 font-semibold text-slate-600 hover:text-amber-600 focus:outline-none flex items-center space-x-2">
+        <i class="fa-solid fa-users"></i>
+        <span>Cestující</span>
+      </button>
+    </div>
+
+    <!-- VIEW 1: Daily Quick Entry -->
+    <div id="view-daily" class="space-y-6">
+      <div class="bg-white p-6 rounded-xl shadow-md border border-slate-200">
+        <div class="flex flex-wrap items-center justify-between gap-4 mb-6 border-b pb-4">
+          <div>
+            <h2 class="text-xl font-bold text-slate-800">Zadat jízdy na den</h2>
+            <p class="text-sm text-slate-500">Vyberte datum a naklikne, kdo v tento den jel Brych Taxi.</p>
+          </div>
+          <div class="flex items-center space-x-2">
+            <label for="daily-date" class="font-medium text-slate-700">Datum:</label>
+            <input type="date" id="daily-date" onchange="loadDailyRides()" class="border border-slate-300 rounded-lg px-3 py-1.5 focus:ring-2 focus:ring-amber-400 focus:outline-none">
+          </div>
+        </div>
+
+        <!-- Daily Rides Table / Form -->
+        <div id="daily-passengers-list" class="space-y-4">
+          <!-- Filled dynamically -->
+        </div>
+
+        <div id="daily-save-container" class="mt-6 flex justify-end">
+          <!-- Save button (Admin only) -->
+        </div>
+      </div>
+    </div>
+
+    <!-- VIEW 2: Monthly Overview & Calendars -->
+    <div id="view-monthly" class="hidden space-y-6">
+      <div class="bg-white p-6 rounded-xl shadow-md border border-slate-200">
+
+        <!-- Month Selector Header -->
+        <div class="flex flex-wrap items-center justify-between gap-4 mb-6 border-b pb-4">
+          <div class="flex items-center space-x-3">
+            <button onclick="changeMonth(-1)" class="p-2 bg-slate-100 hover:bg-slate-200 rounded-lg text-slate-700 transition">
+              <i class="fa-solid fa-chevron-left"></i>
+            </button>
+            <input type="month" id="monthly-month" onchange="loadMonthlyData()" class="text-lg font-bold border border-slate-300 rounded-lg px-3 py-1 text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-400">
+            <button onclick="changeMonth(1)" class="p-2 bg-slate-100 hover:bg-slate-200 rounded-lg text-slate-700 transition">
+              <i class="fa-solid fa-chevron-right"></i>
+            </button>
+          </div>
+          <div>
+            <span class="text-sm font-medium text-slate-500">Celkem projedeno za měsíc:</span>
+            <span id="monthly-total-sum" class="text-2xl font-extrabold text-amber-600 ml-2">0 Kč</span>
+          </div>
+        </div>
+
+        <!-- Monthly Summary Table -->
+        <div class="overflow-x-auto mb-8">
+          <table class="w-full text-left border-collapse">
+            <thead>
+              <tr class="bg-slate-100 text-slate-600 uppercase text-xs font-semibold tracking-wider">
+                <th class="p-3 border-b">Cestující</th>
+                <th class="p-3 border-b text-center">Do školy (Tam)</th>
+                <th class="p-3 border-b text-center">Ze školy (Zpět)</th>
+                <th class="p-3 border-b text-center">Celkem jízd</th>
+                <th class="p-3 border-b text-center">Cena za jízdu (Kč)</th>
+                <th class="p-3 border-b text-right">Celková částka</th>
+                <th class="p-3 border-b text-center">Zaplaceno</th>
+              </tr>
+            </thead>
+            <tbody id="monthly-summary-body" class="divide-y divide-slate-200 text-sm">
+              <!-- Filled dynamically -->
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Passenger Calendars Section -->
+        <h3 class="text-lg font-bold text-slate-800 mb-4 border-t pt-6 flex items-center space-x-2">
+          <i class="fa-regular fa-calendar-check text-amber-500"></i>
+          <span>Detailní kalendáře cestujících</span>
+        </h3>
+        <div class="flex items-center space-x-6 mb-4 text-xs font-medium text-slate-600 bg-slate-50 p-3 rounded-lg">
+          <div class="flex items-center space-x-2">
+            <span class="w-4 h-4 rounded bg-slate-200 inline-block border"></span>
+            <span>Bez jízdy</span>
+          </div>
+          <div class="flex items-center space-x-2">
+            <span class="w-4 h-4 rounded bg-blue-500 inline-block"></span>
+            <span>1 jízda (Tam nebo Zpět)</span>
+          </div>
+          <div class="flex items-center space-x-2">
+            <span class="w-4 h-4 rounded bg-green-700 inline-block"></span>
+            <span>2 jízdy (Tam i Zpět)</span>
+          </div>
+        </div>
+
+        <div id="passenger-calendars-container" class="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <!-- Calendars injected here -->
+        </div>
+
+      </div>
+    </div>
+
+    <!-- VIEW 3: Passengers Management -->
+    <div id="view-passengers" class="hidden space-y-6">
+      <div class="bg-white p-6 rounded-xl shadow-md border border-slate-200">
+        <h2 class="text-xl font-bold text-slate-800 mb-4">Správa cestujících</h2>
+
+        <!-- Add Passenger Form (Admin only) -->
+        <div id="add-passenger-form-container" class="mb-6 p-4 bg-amber-50 rounded-lg border border-amber-200">
+          <!-- Filled dynamically -->
+        </div>
+
+        <!-- Passengers List -->
+        <div class="overflow-x-auto">
+          <table class="w-full text-left border-collapse">
+            <thead>
+              <tr class="bg-slate-100 text-slate-600 uppercase text-xs font-semibold tracking-wider">
+                <th class="p-3 border-b">Jméno</th>
+                <th class="p-3 border-b">Výchozí cena za jízdu (Kč)</th>
+                <th class="p-3 border-b text-right">Akce</th>
+              </tr>
+            </thead>
+            <tbody id="passengers-list-body" class="divide-y divide-slate-200 text-sm">
+              <!-- Filled dynamically -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- Login Modal -->
+  <div id="login-modal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm hidden flex items-center justify-center p-4 z-50">
+    <div class="bg-white rounded-xl shadow-xl max-w-md w-full p-6 space-y-4">
+      <div class="flex justify-between items-center border-b pb-3">
+        <h3 class="text-lg font-bold text-slate-800">Přihlášení správce (Admin)</h3>
+        <button onclick="closeLoginModal()" class="text-slate-400 hover:text-slate-600">
+          <i class="fa-solid fa-xmark text-xl"></i>
+        </button>
+      </div>
+      <form id="login-form" onsubmit="handleLogin(event)" class="space-y-4">
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1">E-mail</label>
+          <input type="email" id="login-email" value="janbrych21@gmail.com" required class="w-full border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-amber-400 focus:outline-none">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1">Heslo</label>
+          <input type="password" id="login-password" required class="w-full border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-amber-400 focus:outline-none">
+        </div>
+        <div id="login-error" class="text-red-500 text-sm hidden"></div>
+        <div class="flex justify-end space-x-2 pt-2">
+          <button type="button" onclick="closeLoginModal()" class="px-4 py-2 border rounded-lg text-slate-600 hover:bg-slate-100">Zrušit</button>
+          <button type="submit" class="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white font-medium rounded-lg shadow">Přihlásit se</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="/app.js"></script>
+</body>
+</html>
