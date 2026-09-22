@@ -6,6 +6,7 @@ import QuickRideEntry from './components/QuickRideEntry';
 import Dashboard from './components/Dashboard';
 import MonthlyOverview from './components/MonthlyOverview';
 import PassengerDetail from './components/PassengerDetail';
+import { api } from './api';
 
 export default function App() {
   const [user, setUser] = useState(null);
@@ -19,8 +20,7 @@ export default function App() {
 
   const checkAuth = async () => {
     try {
-      const res = await fetch('/api/auth/me');
-      const data = await res.json();
+      const data = await api.checkAuth();
       if (data.authenticated) {
         setUser(data.user);
       } else {
@@ -37,7 +37,7 @@ export default function App() {
 
   const handleLogout = async () => {
     try {
-      await fetch('/api/auth/logout', { method: 'POST' });
+      await api.logout();
       setUser(null);
     } catch (err) {
       console.error('Logout error:', err);

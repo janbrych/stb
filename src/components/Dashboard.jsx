@@ -1,19 +1,20 @@
 import React, { useState, useEffect } from 'react';
-import { ChevronLeft, ChevronRight, CheckSquare, Square, DollarSign, Calendar, Users, Car, CheckCircle2, XCircle } from 'lucide-react';
+import { api } from '../api';
 
 export default function Dashboard({ user, onSelectPassenger, refreshedSignal }) {
-  const [yearMonth, setYearMonth] = useState(new Date().toISOString().slice(0, 7)); // 'YYYY-MM'
-  const [summaryData, setSummaryData] = useState(null);
+  const [selectedMonth, setSelectedMonth] = useState(
+    new Date().toISOString().slice(0, 7)
+  );
+  const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
 
   const loadSummary = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/summary/month?year_month=${yearMonth}`);
-      const data = await res.json();
-      setSummaryData(data);
+      const summary = await api.getMonthSummary(selectedMonth);
+      setData(summary);
     } catch (err) {
-      console.error('Error loading month summary:', err);
+      console.error('Error loading dashboard data:', err);
     } finally {
       setLoading(false);
     }
@@ -21,210 +22,144 @@ export default function Dashboard({ user, onSelectPassenger, refreshedSignal }) 
 
   useEffect(() => {
     loadSummary();
-  }, [yearMonth, refreshedSignal]);
+  }, [selectedMonth, refreshedSignal]);
 
-  const handleMonthChange = (offset) => {
-    const [year, month] = yearMonth.split('-').map(Number);
-    const date = new Date(year, month - 1 + offset, 1);
-    const newYm = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-    setYearMonth(newYm);
-  };
-
-  const togglePaymentStatus = async (passengerId, currentStatus) => {
+  const handleTogglePayment = async (passengerId, currentPaid) => {
     if (!user) return;
     try {
-      const res = await fetch(`/api/passengers/${passengerId}/payment`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          year_month: yearMonth,
-          paid: !currentStatus
-        })
-      });
-      if (res.ok) {
-        loadSummary();
-      }
+      await api.setPassengerPayment(passengerId, selectedMonth, !currentPaid);
+      loadSummary();
     } catch (err) {
-      console.error('Error toggling payment status:', err);
+      alert('Chyba při změně stavu zaplacení.');
     }
   };
 
-  const formatMonthCzech = (ymStr) => {
-    const [year, month] = ymStr.split('-').map(Number);
+  const changeMonth = (delta) => {
+    const [year, month] = selectedMonth.split('-').map(Number);
+    const date = new Date(year, month - 1 + delta, 1);
+    const newYm = date.toISOString().slice(0, 7);
+    setSelectedMonth(newYm);
+  };
+
+  const formatMonthCzech = (ym) => {
+    const [year, month] = ym.split('-').map(Number);
     const date = new Date(year, month - 1, 1);
     return date.toLocaleDateString('cs-CZ', { month: 'long', year: 'numeric' });
   };
 
   return (
     <div className="space-y-6">
-      {/* Month Selector Bar */}
-      <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+      {/* Month Selector & Banner */}
+      <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200/80 flex flex-col sm:flex-row items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
-            <Calendar className="w-6 h-6 text-amber-500" />
-            Přehled pro {formatMonthCzech(yearMonth)}
-          </h1>
+          <h1 className="text-2xl font-bold text-slate-900">Přehled jízd a plateb</h1>
           <p className="text-sm text-slate-500 mt-1">
-            Souhrn všech jízd, nastavených cen a stavů zaplacení pro vybraný měsíc.
+            Souhrnné statistiky za měsíc {formatMonthCzech(selectedMonth)}
           </p>
         </div>
 
-        {/* Navigation Buttons */}
-        <div className="flex items-center space-x-2 bg-slate-50 p-1.5 rounded-xl border border-slate-200 self-start md:self-auto">
+        {/* Month Switcher Controls */}
+        <div className="flex items-center gap-2 bg-slate-100 p-1.5 rounded-xl text-sm font-semibold text-slate-700">
           <button
-            onClick={() => handleMonthChange(-1)}
-            className="p-2 hover:bg-white text-slate-700 rounded-lg transition shadow-sm"
+            onClick={() => changeMonth(-1)}
+            className="p-1.5 hover:bg-white rounded-lg transition"
             title="Předchozí měsíc"
           >
-            <ChevronLeft className="w-5 h-5" />
+            ←
           </button>
-          <span className="font-bold text-slate-900 text-sm px-4 capitalize">
-            {formatMonthCzech(yearMonth)}
+          <span className="px-3 capitalize text-slate-900">
+            {formatMonthCzech(selectedMonth)}
           </span>
           <button
-            onClick={() => handleMonthChange(1)}
-            className="p-2 hover:bg-white text-slate-700 rounded-lg transition shadow-sm"
-            title="Následující měsíc"
+            onClick={() => changeMonth(1)}
+            className="p-1.5 hover:bg-white rounded-lg transition"
+            title="Další měsíc"
           >
-            <ChevronRight className="w-5 h-5" />
+            →
           </button>
         </div>
       </div>
 
-      {/* Summary Stat Cards */}
-      {summaryData && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">Celkem jízd</span>
-              <div className="p-2 bg-amber-50 text-amber-600 rounded-xl">
-                <Car className="w-5 h-5" />
-              </div>
-            </div>
-            <p className="text-2xl font-black text-slate-900 mt-2">{summaryData.grand_total_rides}</p>
-            <p className="text-xs text-slate-500 mt-1">všechny jízdy za tento měsíc</p>
-          </div>
-
-          <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">Celková částka</span>
-              <div className="p-2 bg-blue-50 text-blue-600 rounded-xl">
-                <DollarSign className="w-5 h-5" />
-              </div>
-            </div>
-            <p className="text-2xl font-black text-slate-900 mt-2">{summaryData.grand_total_amount} Kč</p>
-            <p className="text-xs text-slate-500 mt-1">celkový dluh za tento měsíc</p>
-          </div>
-
-          <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">Zaplaceno</span>
-              <div className="p-2 bg-emerald-50 text-emerald-600 rounded-xl">
-                <CheckCircle2 className="w-5 h-5" />
-              </div>
-            </div>
-            <p className="text-2xl font-black text-emerald-600 mt-2">{summaryData.grand_total_paid_amount} Kč</p>
-            <p className="text-xs text-slate-500 mt-1">vybrané peníze od cestujících</p>
-          </div>
-
-          <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">Zbývá zaplatit</span>
-              <div className="p-2 bg-rose-50 text-rose-600 rounded-xl">
-                <XCircle className="w-5 h-5" />
-              </div>
-            </div>
-            <p className="text-2xl font-black text-rose-600 mt-2">{summaryData.grand_total_unpaid_amount} Kč</p>
-            <p className="text-xs text-slate-500 mt-1">zbývající nedoplatky</p>
-          </div>
+      {loading ? (
+        <div className="text-center py-12 text-slate-400">Načítám přehled...</div>
+      ) : !data || data.passengers.length === 0 ? (
+        <div className="bg-white rounded-2xl p-12 text-center text-slate-500 border border-slate-200">
+          Žádná data pro tento měsíc.
         </div>
-      )}
+      ) : (
+        <>
+          {/* Summary Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-sm">
+              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Celkem jízd</p>
+              <p className="text-2xl font-bold text-slate-900 mt-1">{data.grand_total_rides}</p>
+            </div>
+            <div className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-sm">
+              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Celková částka</p>
+              <p className="text-2xl font-bold text-slate-900 mt-1">{data.grand_total_amount} Kč</p>
+            </div>
+            <div className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-sm">
+              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Zaplaceno</p>
+              <p className="text-2xl font-bold text-emerald-600 mt-1">{data.grand_total_paid_amount} Kč</p>
+            </div>
+            <div className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-sm">
+              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Zbývá zaplatit</p>
+              <p className="text-2xl font-bold text-amber-600 mt-1">{data.grand_total_unpaid_amount} Kč</p>
+            </div>
+          </div>
 
-      {/* Passengers Table */}
-      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-        <div className="px-6 py-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
-          <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
-            Seznam cestujících a jejich souhrn
-          </span>
-          <span className="text-xs text-slate-500">
-            Kliknutím na jméno zobrazíte detail cestujícího
-          </span>
-        </div>
-
-        {loading ? (
-          <div className="p-8 text-center text-slate-500">Načítám přehled...</div>
-        ) : !summaryData || summaryData.passengers.length === 0 ? (
-          <div className="p-8 text-center text-slate-500">Žádní cestující k zobrazení.</div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead className="bg-slate-100/70 text-slate-600 text-xs uppercase font-bold tracking-wider">
-                <tr>
-                  <th className="py-3 px-6">Cestující</th>
-                  <th className="py-3 px-4 text-center">TAM</th>
-                  <th className="py-3 px-4 text-center">ZPĚT</th>
-                  <th className="py-3 px-4 text-center">Jízd celkem</th>
-                  <th className="py-3 px-4 text-right">Cena / jízda</th>
-                  <th className="py-3 px-4 text-right">Celkem Kč</th>
-                  <th className="py-3 px-6 text-center">Stav zaplacení</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 font-medium">
-                {summaryData.passengers.map(p => (
-                  <tr key={p.passenger_id} className="hover:bg-amber-50/40 transition">
-                    <td className="py-4 px-6">
-                      <button
-                        onClick={() => onSelectPassenger(p.passenger_id)}
-                        className="font-bold text-slate-900 hover:text-amber-600 text-base text-left flex items-center space-x-2 group transition"
-                      >
-                        <div className="w-7 h-7 rounded-full bg-slate-100 group-hover:bg-amber-100 text-slate-700 group-hover:text-amber-800 flex items-center justify-center text-xs">
-                          <Users className="w-3.5 h-3.5" />
-                        </div>
-                        <span>{p.name}</span>
-                      </button>
-                    </td>
-                    <td className="py-4 px-4 text-center text-slate-600">{p.tam_count}×</td>
-                    <td className="py-4 px-4 text-center text-slate-600">{p.zpet_count}×</td>
-                    <td className="py-4 px-4 text-center font-bold text-slate-900">
-                      <span className="bg-slate-100 px-2.5 py-1 rounded-lg">
-                        {p.total_rides}×
-                      </span>
-                    </td>
-                    <td className="py-4 px-4 text-right text-slate-600">{p.price} Kč</td>
-                    <td className="py-4 px-4 text-right font-black text-slate-900 text-base">
-                      {p.total_amount} Kč
-                    </td>
-                    <td className="py-4 px-6 text-center">
-                      <button
-                        disabled={!user}
-                        onClick={() => togglePaymentStatus(p.passenger_id, p.paid)}
-                        className={`inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-xl font-bold text-xs transition ${
-                          p.paid
-                            ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
-                            : 'bg-rose-100 text-rose-800 border border-rose-300'
-                        } ${user ? 'hover:scale-105 cursor-pointer' : 'cursor-default'}`}
-                        title={user ? 'Kliknutím změníte stav zaplacení' : 'Stav zaplacení (pouze admin může měnit)'}
-                      >
-                        {p.paid ? (
-                          <>
-                            <CheckSquare className="w-4 h-4 text-emerald-600" />
-                            <span>Zaplaceno</span>
-                          </>
-                        ) : (
-                          <>
-                            <Square className="w-4 h-4 text-rose-600" />
-                            <span>Nezaplaceno</span>
-                          </>
-                        )}
-                      </button>
-                    </td>
+          {/* Passenger Table */}
+          <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-slate-50/80 border-b border-slate-200/80 text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                    <th className="py-3.5 px-4 sm:px-6">Cestující</th>
+                    <th className="py-3.5 px-4 text-center">TAM</th>
+                    <th className="py-3.5 px-4 text-center">ZPĚT</th>
+                    <th className="py-3.5 px-4 text-center">Celkem jízd</th>
+                    <th className="py-3.5 px-4 text-right">Cena / jízda</th>
+                    <th className="py-3.5 px-4 text-right">Celkem Kč</th>
+                    <th className="py-3.5 px-4 sm:px-6 text-center">Zaplaceno</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-slate-100 text-sm font-medium text-slate-700">
+                  {data.passengers.map((p) => (
+                    <tr key={p.passenger_id} className="hover:bg-slate-50/60 transition">
+                      <td className="py-4 px-4 sm:px-6">
+                        <button
+                          onClick={() => onSelectPassenger(p.passenger_id)}
+                          className="font-bold text-slate-900 hover:text-amber-600 transition text-left"
+                        >
+                          {p.name}
+                        </button>
+                      </td>
+                      <td className="py-4 px-4 text-center text-slate-600">{p.tam_count}</td>
+                      <td className="py-4 px-4 text-center text-slate-600">{p.zpet_count}</td>
+                      <td className="py-4 px-4 text-center font-bold text-slate-900">{p.total_rides}</td>
+                      <td className="py-4 px-4 text-right">{p.price} Kč</td>
+                      <td className="py-4 px-4 text-right font-bold text-slate-900">{p.total_amount} Kč</td>
+                      <td className="py-4 px-4 sm:px-6 text-center">
+                        <button
+                          disabled={!user}
+                          onClick={() => handleTogglePayment(p.passenger_id, p.paid)}
+                          className={`px-3 py-1.5 rounded-lg font-semibold text-xs transition inline-flex items-center gap-1.5 ${
+                            p.paid
+                              ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                              : 'bg-amber-100 text-amber-800 border border-amber-200'
+                          } ${!user ? 'cursor-default opacity-90' : 'hover:opacity-80'}`}
+                        >
+                          {p.paid ? '☑ Zaplaceno' : '☐ Nezaplaceno'}
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
-        )}
-      </div>
+        </>
+      )}
     </div>
   );
 }
