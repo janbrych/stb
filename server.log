@@ -1,0 +1,5 @@
+
+> brych-taxi@1.0.0 start
+> node server/index.js
+
+Brych Taxi server running on port 3000
