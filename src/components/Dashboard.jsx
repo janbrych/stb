@@ -34,6 +34,19 @@ export default function Dashboard({ user, onSelectPassenger, refreshedSignal }) 
     }
   };
 
+  const handleDeletePassenger = async (passengerId, passengerName) => {
+    if (!user) return;
+    if (!window.confirm(`Opravdu chcete smazat cestujícího ${passengerName}? Všechny jeho jízdy a historie budou trvale smazány.`)) {
+      return;
+    }
+    try {
+      await api.deletePassenger(passengerId);
+      loadSummary();
+    } catch (err) {
+      alert('Chyba při mazání cestujícího.');
+    }
+  };
+
   const changeMonth = (delta) => {
     const [year, month] = selectedMonth.split('-').map(Number);
     const date = new Date(year, month - 1 + delta, 1);
@@ -125,14 +138,28 @@ export default function Dashboard({ user, onSelectPassenger, refreshedSignal }) 
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-sm font-medium text-slate-700">
                   {data.passengers.map((p) => (
-                    <tr key={p.passenger_id} className="hover:bg-slate-50/60 transition">
+                    <tr key={p.passenger_id} className="hover:bg-slate-50/60 transition group">
                       <td className="py-4 px-4 sm:px-6">
-                        <button
-                          onClick={() => onSelectPassenger(p.passenger_id)}
-                          className="font-bold text-slate-900 hover:text-amber-600 transition text-left"
-                        >
-                          {p.name}
-                        </button>
+                        <div className="flex items-center justify-between gap-2">
+                          <button
+                            onClick={() => onSelectPassenger(p.passenger_id)}
+                            className="font-bold text-slate-900 hover:text-amber-600 transition text-left"
+                          >
+                            {p.name}
+                          </button>
+                          {user && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeletePassenger(p.passenger_id, p.name);
+                              }}
+                              className="text-xs text-red-500 hover:text-red-700 p-1 hover:bg-red-50 rounded transition"
+                              title="Smazat cestujícího"
+                            >
+                              ✕
+                            </button>
+                          )}
+                        </div>
                       </td>
                       <td className="py-4 px-4 text-center text-slate-600">{p.tam_count}</td>
                       <td className="py-4 px-4 text-center text-slate-600">{p.zpet_count}</td>
